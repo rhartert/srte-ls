@@ -91,12 +91,18 @@ func forwardingGraph(g *Digraph, prevs [][]int, s int, t int) map[int]float64 {
 	degrees := make([]int, nNodes)
 
 	queue = append(queue, t)
+	inQueue := make([]bool, nNodes)
+	inQueue[t] = true
+
 	for i := 0; i < len(queue); i++ {
 		v := queue[i]
 		degrees[v] = len(prevs[v])
 		for _, e := range prevs[v] {
 			u := g.Edges[e].From
-			queue = append(queue, u)
+			if !inQueue[u] {
+				queue = append(queue, u)
+				inQueue[u] = true
+			}
 			nexts[u] = append(nexts[u], e)
 		}
 	}
