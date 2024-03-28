@@ -1,12 +1,13 @@
 package srte
 
 import (
+	"math"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestState_Load(t *testing.T) {
+func TestNetworkState_Load(t *testing.T) {
 	state := NewNetworkState(3)
 	want := int64(100)
 	state.loads[1] = want
@@ -18,7 +19,7 @@ func TestState_Load(t *testing.T) {
 	}
 }
 
-func TestState_AddLoad_oneAdd(t *testing.T) {
+func TestNetworkState_AddLoad_oneAdd(t *testing.T) {
 	wantChanges := []LoadChange{{0, 0}}
 	wantLoads := []int64{10, 0, 0}
 	state := NewNetworkState(3)
@@ -36,7 +37,7 @@ func TestState_AddLoad_oneAdd(t *testing.T) {
 	}
 }
 
-func TestState_AddLoad_twoAdds(t *testing.T) {
+func TestNetworkState_AddLoad_twoAdds(t *testing.T) {
 	wantChanges := []LoadChange{{1, 10}}
 	wantLoads := []int64{0, 30, 0}
 	state := NewNetworkState(3)
@@ -56,7 +57,7 @@ func TestState_AddLoad_twoAdds(t *testing.T) {
 	}
 }
 
-func TestState_RemoveLoad_oneRemove(t *testing.T) {
+func TestNetworkState_RemoveLoad_oneRemove(t *testing.T) {
 	wantChanges := []LoadChange{{0, 10}}
 	wantLoads := []int64{0, 0, 0}
 	state := NewNetworkState(3)
@@ -75,7 +76,7 @@ func TestState_RemoveLoad_oneRemove(t *testing.T) {
 	}
 }
 
-func TestState_RemoveLoad_twoRemoves(t *testing.T) {
+func TestNetworkState_RemoveLoad_twoRemoves(t *testing.T) {
 	wantChanges := []LoadChange{{1, 30}}
 	wantLoads := []int64{0, 10, 0}
 	state := NewNetworkState(3)
@@ -95,7 +96,7 @@ func TestState_RemoveLoad_twoRemoves(t *testing.T) {
 	}
 }
 
-func TestState_PersistChanges(t *testing.T) {
+func TestNetworkState_PersistChanges(t *testing.T) {
 	wantLoads := []int64{0, 10, 20}
 	wantChanges := []LoadChange{}
 	state := NewNetworkState(3)
@@ -116,7 +117,7 @@ func TestState_PersistChanges(t *testing.T) {
 	}
 }
 
-func TestState_UndoChanges(t *testing.T) {
+func TestNetworkState_UndoChanges(t *testing.T) {
 	wantLoads := []int64{0, 10, 20}
 	wantChanges := []LoadChange{}
 	state := NewNetworkState(3)
@@ -138,7 +139,7 @@ func TestState_UndoChanges(t *testing.T) {
 	}
 }
 
-func TestState_Changes(t *testing.T) {
+func TestNetworkState_Changes(t *testing.T) {
 	want := []LoadChange{{1, 0}, {3, 0}}
 	state := NewNetworkState(5)
 
@@ -148,5 +149,21 @@ func TestState_Changes(t *testing.T) {
 
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("ChangedEdges(): mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestNetworkState_incrTimestamp(t *testing.T) {
+	state := NewNetworkState(5)
+	state.timestamp = math.MaxInt
+
+	state.incrTimestamp() // overflow
+
+	if got := state.timestamp; got != 1 {
+		t.Errorf("incrTimestamp(): want timestamp 1, got %d", got)
+	}
+	for e, got := range state.savedAt {
+		if got != 0 {
+			t.Errorf("saveAt[%d]: want 0, got %d", e, got)
+		}
 	}
 }

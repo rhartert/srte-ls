@@ -1,27 +1,30 @@
 package srte
 
+import "math"
+
+// LoadChange is a pair that contains the load of an edge before it was changed.
 type LoadChange struct {
 	Edge      int
 	SavedLoad int64
 }
 
 // NetworkState is a reversible structure which represents the state of the
-// network in terms of traffic. This structure keeps track of changes applied
-// to its edges and can efficiently undo them.
+// network's load. This structure keeps track of changes applied to its edges
+// and can efficiently undo them.
 type NetworkState struct {
 	loads []int64
 
-	// Stack of changes applied to the current state.
+	// Stack of changes used to restore the last persisted state.
 	changes  []LoadChange
 	nChanges int
 
 	// The savedAt slice effectively acts as a slice of booleans to check
 	// whether the load of an edge was changed in the current state or not.
 	// Precisely, an edge e has been changed if savedAt[e] == timestamp. The
-	// use of logical timestamp (rather than booleans) provides an efficient
+	// use of a logical timestamp (rather than booleans) provides an efficient
 	// way to mark all edges as unchanged in O(1) by incrementing the timestamp.
-	savedAt   []int
-	timestamp int
+	savedAt   []uint
+	timestamp uint
 }
 
 // NewNetworkState initializes and returns a new NetworkState.
@@ -30,8 +33,8 @@ func NewNetworkState(nEdges int) *NetworkState {
 		loads:     make([]int64, nEdges),
 		changes:   make([]LoadChange, nEdges),
 		nChanges:  0,
-		savedAt:   make([]int, nEdges),
-		timestamp: 1, // must be different than the values in savedAt
+		savedAt:   make([]uint, nEdges),
+		timestamp: 1, // must be greater than the zero values in savedAt
 	}
 }
 
@@ -61,7 +64,7 @@ func (s *NetworkState) RemoveLoad(edge int, load int64) {
 // be accumulated (and undone) from this point.
 func (s *NetworkState) PersistChanges() {
 	s.nChanges = 0
-	s.timestamp += 1
+	s.incrTimestamp()
 }
 
 // UndoChanges undoes all the changes since the last time PersistChanges was
@@ -73,15 +76,28 @@ func (s *NetworkState) UndoChanges() {
 		lc := s.changes[s.nChanges]
 		s.loads[lc.Edge] = lc.SavedLoad
 	}
-	s.timestamp += 1
+	s.incrTimestamp()
 }
 
 // Changes returns the edges that have been changed since the last time
 // changes were persisted.
 //
-// Impirtant: the slice is a view on one of the state's internal structure and
+// Important: the slice is a view on one of the state's internal structure and
 // should only be used in read-only operations. Modifying the slice will most
 // likely results in incorrect behavior.
 func (s *NetworkState) Changes() []LoadChange {
 	return s.changes[:s.nChanges]
+}
+
+// incrTimestamp safely increments the value of the timestamp by resetting the
+// savedAt slice and the timestamp if it overflows.
+func (s *NetworkState) incrTimestamp() {
+	if s.timestamp != math.MaxUint {
+		s.timestamp += 1
+		return
+	}
+	s.timestamp = 1
+	for i := range s.savedAt {
+		s.savedAt[i] = 0
+	}
 }

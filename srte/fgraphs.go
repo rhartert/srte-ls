@@ -180,7 +180,7 @@ func shortestDAG(g *Digraph, src int) ([][]int, error) {
 				continue
 			}
 
-			// Path src -> u -> v is the better than the best path to v so far.
+			// Path src -> u -> v is better than the best path to v so far.
 			costs[v] = newCost
 			prevs[v] = []int{e}
 			h.Put(v, newCost)
