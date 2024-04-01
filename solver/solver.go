@@ -1,3 +1,5 @@
+// Package solver contains an implementation of the Link-Guided Search algorithm
+// to minimize the maximum utilization of a network.
 package solver
 
 import (
@@ -21,6 +23,8 @@ type LinkGuidedSolver struct {
 	demandsByEdge []map[int]int64
 }
 
+// NewLinkGuidedSolver returns a new instance of a Link-Guided Search solver to
+// minimize the maximum utilization of the given SRTE state.
 func NewLinkGuidedSolver(state *srte.SRTE, cfg Config) *LinkGuidedSolver {
 	nEdges := len(state.Instance.Graph.Edges)
 
@@ -47,15 +51,22 @@ func NewLinkGuidedSolver(state *srte.SRTE, cfg Config) *LinkGuidedSolver {
 	return lgs
 }
 
+// MostUtilizedEdge returns the ID of the edge with the highest utilization. If
+// several edges have the same highest utilization, the one with the smallest
+// ID is returned.
 func (lgs *LinkGuidedSolver) MostUtilizedEdge() int {
 	entry, _ := lgs.edgesByUtil.Min()
 	return entry.Elem
 }
 
+// MaxUtilization returns the maximum edge utilization.
 func (lgs *LinkGuidedSolver) MaxUtilization() float64 {
 	return lgs.state.Utilization(lgs.MostUtilizedEdge())
 }
 
+// SelectEdge returns a randomly selected edge. The probability to select edge
+// e is calculated as follows P(e) = (util[e]^alpha) / Σ(util[j]^alpha) where
+// util(e) is the utilization of edge e.
 func (lgs *LinkGuidedSolver) SelectEdge(r float64) int {
 	if r < 0 || 1 <= r {
 		log.Fatalf("r must be a random number in [0, 1), got: %f", r)
@@ -63,6 +74,8 @@ func (lgs *LinkGuidedSolver) SelectEdge(r float64) int {
 	return lgs.edgeWheel.Get(r * lgs.edgeWheel.TotalWeight())
 }
 
+// SelectDemand returns the demand that sends the most traffic on the given
+// edge. It returns -1 if no demand sends traffic on the edge.
 func (lgs *LinkGuidedSolver) SelectDemand(edge int) int {
 	bestLoad := int64(0)
 	bestDemand := -1
@@ -78,10 +91,17 @@ func (lgs *LinkGuidedSolver) SelectDemand(edge int) int {
 	return bestDemand
 }
 
-func (lgs *LinkGuidedSolver) Search(edge int, demand int, maxutil float64) (srte.Move, bool) {
-	return lgs.state.Search(edge, demand, maxutil)
+// Search searches for a move that reduces the load of edge by changing the
+// demand's path. The second returned value is a bool that indicates whether a
+// valid move was found. Moves that increase the utilization of an edge above
+// maxUtil are not considered valid. If several moves are possible, the one that
+// reduces the edge's load the most is returned.
+func (lgs *LinkGuidedSolver) Search(edge int, demand int, maxUtil float64) (srte.Move, bool) {
+	return lgs.state.Search(edge, demand, maxUtil)
 }
 
+// ApplyMove applies the move if possible. It returns true if the move was
+// applied, false otherwise.
 func (lgs *LinkGuidedSolver) ApplyMove(move srte.Move) bool {
 	// Apply the move but do not persist the changes yet (see below).
 	if applied := lgs.state.ApplyMove(move, false); !applied {
