@@ -42,11 +42,11 @@ type Move struct {
 }
 
 type SRTE struct {
-	FGraphs *FGraphs
-	State   *NetworkState
-	PathVar []paths.PathVar
-
+	FGraphs  *FGraphs
+	PathVar  []paths.PathVar
 	Instance *SRTEInstance
+
+	state *NetworkState
 
 	// Maintain the most loaded edge.
 	edgesByUsage *yagh.IntMap[float64]
@@ -105,9 +105,9 @@ func NewSRTE(instance *SRTEInstance) (*SRTE, error) {
 
 	return &SRTE{
 		FGraphs:       fgraphs,
-		State:         state,
 		PathVar:       demandPaths,
 		Instance:      instance,
+		state:         state,
 		edgesBefore:   sparsesets.New(nEdges),
 		edgesAfter:    sparsesets.New(nEdges),
 		edgesByUsage:  edgesByUsage,
@@ -121,7 +121,7 @@ func (srte *SRTE) MostUtilizedEdge() int {
 }
 
 func (srte *SRTE) Utilization(edge int) float64 {
-	return float64(srte.State.Load(edge)) / float64(srte.Instance.LinkCapacities[edge])
+	return float64(srte.state.Load(edge)) / float64(srte.Instance.LinkCapacities[edge])
 }
 
 func (srte *SRTE) SelectDemand(edge int) int {
@@ -144,7 +144,7 @@ func (srte *SRTE) SelectDemand(edge int) int {
 func (srte *SRTE) ApplyMove(m Move, persist bool) {
 	movedApplied := false // whether the move was applied or not
 
-	srte.State.UndoChanges()
+	srte.state.UndoChanges()
 	switch m.moveType {
 	case moveClear:
 		movedApplied = srte.Clear(m.demand)
@@ -182,69 +182,69 @@ func (srte *SRTE) ApplyMove(m Move, persist bool) {
 }
 
 func (srte *SRTE) PersistChanges() {
-	for _, lc := range srte.State.Changes() {
+	for _, lc := range srte.state.Changes() {
 		cost := -srte.Utilization(lc.Edge) // sort by decreasing utilization
 		srte.edgesByUsage.Put(lc.Edge, cost)
 	}
-	srte.State.PersistChanges()
+	srte.state.PersistChanges()
 }
 
 func (srte *SRTE) Changes() []LoadChange {
-	return srte.State.Changes()
+	return srte.state.Changes()
 }
 
-func (srte *SRTE) Search(edge int, demand int, strict bool) (Move, bool) {
-	if move, ok := srte.SearchClear(edge, demand, strict); ok {
+func (srte *SRTE) Search(edge int, demand int, maxutil float64) (Move, bool) {
+	if move, ok := srte.SearchClear(edge, demand, maxutil); ok {
 		return move, true
 	}
-	if move, ok := srte.SearchRemove(edge, demand, strict); ok {
+	if move, ok := srte.SearchRemove(edge, demand, maxutil); ok {
 		return move, true
 	}
-	if move, ok := srte.SearchUpdate(edge, demand, strict); ok {
+	if move, ok := srte.SearchUpdate(edge, demand, maxutil); ok {
 		return move, true
 	}
-	if move, ok := srte.SearchInsert(edge, demand, strict); ok {
+	if move, ok := srte.SearchInsert(edge, demand, maxutil); ok {
 		return move, true
 	}
 	return Move{}, false
 }
 
-func (srte *SRTE) SearchClear(edge int, demand int, strict bool) (Move, bool) {
-	edgeLoad := srte.State.Load(edge)
+func (srte *SRTE) SearchClear(edge int, demand int, maxutil float64) (Move, bool) {
+	edgeLoad := srte.state.Load(edge)
 	maxUtil := srte.Utilization(srte.MostUtilizedEdge())
 
-	srte.State.UndoChanges()
+	srte.state.UndoChanges()
 	ok := !srte.Clear(demand)
-	srte.State.UndoChanges()
+	srte.state.UndoChanges()
 
 	if !ok {
 		return Move{}, false
 	}
-	if strict && !srte.checkMaxUtil(maxUtil) {
+	if !srte.checkMaxUtil(maxUtil) {
 		return Move{}, false
 	}
-	if l := srte.State.Load(edge); l >= edgeLoad {
+	if l := srte.state.Load(edge); l >= edgeLoad {
 		return Move{}, false
 	}
 
 	return Move{moveType: moveClear, demand: demand}, true
 }
 
-func (srte *SRTE) SearchRemove(edge int, demand int, strict bool) (Move, bool) {
-	edgeLoad := srte.State.Load(edge)
+func (srte *SRTE) SearchRemove(edge int, demand int, maxutil float64) (Move, bool) {
+	edgeLoad := srte.state.Load(edge)
 	maxUtil := srte.Utilization(srte.MostUtilizedEdge())
 	pathVar := srte.PathVar[demand]
 
 	bestMove := Move{}
 	for p := 1; p < pathVar.Length(); p++ {
-		srte.State.UndoChanges()
+		srte.state.UndoChanges()
 		if !srte.Remove(demand, p) {
 			continue
 		}
-		if strict && !srte.checkMaxUtil(maxUtil) {
+		if !srte.checkMaxUtil(maxUtil) {
 			continue
 		}
-		if l := srte.State.Load(edge); l < edgeLoad {
+		if l := srte.state.Load(edge); l < edgeLoad {
 			bestMove = Move{
 				moveType: moveRemove,
 				demand:   demand,
@@ -254,33 +254,33 @@ func (srte *SRTE) SearchRemove(edge int, demand int, strict bool) (Move, bool) {
 		}
 	}
 
-	srte.State.UndoChanges()
+	srte.state.UndoChanges()
 	return bestMove, bestMove.moveType != moveUnknown
 }
 
-func (srte *SRTE) SearchUpdate(edge int, demand int, strict bool) (Move, bool) {
+func (srte *SRTE) SearchUpdate(edge int, demand int, maxUtil float64) (Move, bool) {
 	nNodes := len(srte.Instance.Graph.Nexts)
-	edgeLoad := srte.State.Load(edge)
-	maxUtil := srte.Utilization(srte.MostUtilizedEdge())
+	edgeLoad := srte.state.Load(edge)
 	pathVar := srte.PathVar[demand]
 
 	bestMove := Move{}
 	for p := 1; p < pathVar.Length(); p++ {
 		for n := 0; n < nNodes; n++ {
-			srte.State.UndoChanges()
+			srte.state.UndoChanges()
 			if !srte.Update(demand, p, n) {
 				continue
 			}
-			if strict && !srte.checkMaxUtil(maxUtil) {
+			if !srte.checkMaxUtil(maxUtil) {
 				continue
 			}
-			if l := srte.State.Load(edge); l < edgeLoad {
+			if l := srte.state.Load(edge); l < edgeLoad {
 				bestMove = Move{
 					moveType: moveUpdate,
 					demand:   demand,
 					position: p,
 					node:     n,
 				}
+				edgeLoad = l
 			}
 		}
 	}
@@ -288,23 +288,22 @@ func (srte *SRTE) SearchUpdate(edge int, demand int, strict bool) (Move, bool) {
 	return bestMove, bestMove.moveType != moveUnknown
 }
 
-func (srte *SRTE) SearchInsert(edge int, demand int, strict bool) (Move, bool) {
+func (srte *SRTE) SearchInsert(edge int, demand int, maxUtil float64) (Move, bool) {
 	nNodes := len(srte.Instance.Graph.Nexts)
-	edgeLoad := srte.State.Load(edge)
-	maxUtil := srte.Utilization(srte.MostUtilizedEdge())
+	edgeLoad := srte.state.Load(edge)
 	pathVar := srte.PathVar[demand]
 	bestMove := Move{}
 
 	for p := 1; p <= pathVar.Length(); p++ {
 		for n := 0; n < nNodes; n++ {
-			srte.State.UndoChanges()
+			srte.state.UndoChanges()
 			if !srte.Insert(demand, p, n) {
 				continue
 			}
-			if strict && !srte.checkMaxUtil(maxUtil) {
+			if !srte.checkMaxUtil(maxUtil) {
 				continue
 			}
-			if l := srte.State.Load(edge); l < edgeLoad {
+			if l := srte.state.Load(edge); l < edgeLoad {
 				bestMove = Move{
 					moveType: moveInsert,
 					demand:   demand,
@@ -316,8 +315,19 @@ func (srte *SRTE) SearchInsert(edge int, demand int, strict bool) (Move, bool) {
 		}
 	}
 
-	srte.State.UndoChanges()
+	srte.state.UndoChanges()
 	return bestMove, bestMove.moveType != moveUnknown
+}
+
+// checkMaxUtil returns true if the utilization of all the changed edges is
+// lower than maxUtil.
+func (srte *SRTE) checkMaxUtil(maxUtil float64) bool {
+	for _, lc := range srte.state.Changes() {
+		if srte.Utilization(lc.Edge) >= maxUtil {
+			return false
+		}
+	}
+	return true
 }
 
 func (srte *SRTE) Clear(demand int) bool {
@@ -399,24 +409,15 @@ func load(bw int64, ratio float64) int64 {
 	return int64(math.Ceil(float64(bw) * ratio))
 }
 
-func (srte *SRTE) checkMaxUtil(maxUtil float64) bool {
-	for _, lc := range srte.State.Changes() {
-		if srte.Utilization(lc.Edge) >= maxUtil {
-			return false
-		}
-	}
-	return true
-}
-
 func (srte *SRTE) removeLoad(from int, to int, bw int64) {
 	for _, er := range srte.FGraphs.EdgeRatios(from, to) {
-		srte.State.RemoveLoad(er.Edge, load(bw, er.Ratio))
+		srte.state.RemoveLoad(er.Edge, load(bw, er.Ratio))
 	}
 }
 
 func (srte *SRTE) addLoad(from int, to int, bw int64) {
 	for _, er := range srte.FGraphs.EdgeRatios(from, to) {
-		srte.State.AddLoad(er.Edge, load(bw, er.Ratio))
+		srte.state.AddLoad(er.Edge, load(bw, er.Ratio))
 	}
 }
 

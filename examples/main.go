@@ -140,7 +140,8 @@ func main() {
 		edgeWheel.SetWeight(e, math.Pow(state.Utilization(e), *flagAlpha))
 	}
 
-	fmt.Printf("Initial utilization: %.3f\n", state.Utilization(state.MostUtilizedEdge()))
+	maxUtil := state.Utilization(state.MostUtilizedEdge())
+	fmt.Printf("Initial utilization: %.3f\n", maxUtil)
 	for iter := 0; iter < *flagMaxIterations; iter++ {
 		// Randomly select the next edge to improve. The most utilized an edge
 		// is, the most likely it is to be selected.
@@ -151,7 +152,7 @@ func main() {
 
 		// Search for a move that reduces the load of the selected edge and does
 		// not increase the maximum utilization of the network.
-		move, found := state.Search(e, d, true)
+		move, found := state.Search(e, d, maxUtil)
 		if !found {
 			continue
 		}
@@ -168,7 +169,7 @@ func main() {
 		// Persist the changes now that the structures have been updated.
 		state.PersistChanges()
 
-		maxEdge := state.MostUtilizedEdge()
-		fmt.Printf("iter %d, best utilization: %f\n", iter, state.Utilization(maxEdge))
+		maxUtil = state.Utilization(state.MostUtilizedEdge())
+		fmt.Printf("iter %d, best utilization: %f\n", iter, maxUtil)
 	}
 }
