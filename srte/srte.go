@@ -22,21 +22,21 @@ type Demand struct {
 	Bandwidth int64
 }
 
-type moveType int8
+type MoveType int8
 
 const (
-	moveUnknown moveType = iota
-	moveClear
-	moveRemove
-	moveUpdate
-	moveInsert
+	MoveUnknown MoveType = iota
+	MoveClear
+	MoveRemove
+	MoveUpdate
+	MoveInsert
 )
 
 type Move struct {
-	moveType moveType
-	position int
-	node     int
-	demand   int
+	MoveType MoveType
+	Position int
+	Node     int
+	Demand   int
 }
 
 type SRTE struct {
@@ -92,41 +92,42 @@ func (srte *SRTE) Utilization(edge int) float64 {
 	return float64(srte.state.Load(edge)) / float64(srte.Instance.LinkCapacities[edge])
 }
 
-func (srte *SRTE) ApplyMove(m Move, persist bool) {
+func (srte *SRTE) ApplyMove(m Move, persist bool) bool {
 	movedApplied := false // whether the move was applied or not
 
 	srte.state.UndoChanges()
-	switch m.moveType {
-	case moveClear:
-		movedApplied = srte.Clear(m.demand)
-	case moveRemove:
-		movedApplied = srte.Remove(m.demand, m.position)
-	case moveUpdate:
-		movedApplied = srte.Update(m.demand, m.position, m.node)
-	case moveInsert:
-		movedApplied = srte.Insert(m.demand, m.position, m.node)
+	switch m.MoveType {
+	case MoveClear:
+		movedApplied = srte.Clear(m.Demand)
+	case MoveRemove:
+		movedApplied = srte.Remove(m.Demand, m.Position)
+	case MoveUpdate:
+		movedApplied = srte.Update(m.Demand, m.Position, m.Node)
+	case MoveInsert:
+		movedApplied = srte.Insert(m.Demand, m.Position, m.Node)
 	default:
 		log.Fatalf("Cannot apply unknown move: %+v", m)
 	}
 
 	if !movedApplied {
-		return
+		return false
 	}
 
-	switch m.moveType {
-	case moveClear:
-		srte.PathVar[m.demand].Clear()
-	case moveRemove:
-		srte.PathVar[m.demand].Remove(m.position)
-	case moveUpdate:
-		srte.PathVar[m.demand].Update(m.position, m.node)
-	case moveInsert:
-		srte.PathVar[m.demand].Insert(m.position, m.node)
+	switch m.MoveType {
+	case MoveClear:
+		srte.PathVar[m.Demand].Clear()
+	case MoveRemove:
+		srte.PathVar[m.Demand].Remove(m.Position)
+	case MoveUpdate:
+		srte.PathVar[m.Demand].Update(m.Position, m.Node)
+	case MoveInsert:
+		srte.PathVar[m.Demand].Insert(m.Position, m.Node)
 	}
 
 	if persist {
 		srte.PersistChanges()
 	}
+	return true
 }
 
 func (srte *SRTE) PersistChanges() {
@@ -170,7 +171,7 @@ func (srte *SRTE) SearchClear(edge int, demand int, maxUtil float64) (Move, bool
 		return Move{}, false
 	}
 
-	return Move{moveType: moveClear, demand: demand}, true
+	return Move{MoveType: MoveClear, Demand: demand}, true
 }
 
 func (srte *SRTE) SearchRemove(edge int, demand int, maxUtil float64) (Move, bool) {
@@ -188,16 +189,16 @@ func (srte *SRTE) SearchRemove(edge int, demand int, maxUtil float64) (Move, boo
 		}
 		if l := srte.state.Load(edge); l < edgeLoad {
 			bestMove = Move{
-				moveType: moveRemove,
-				demand:   demand,
-				position: p,
+				MoveType: MoveRemove,
+				Demand:   demand,
+				Position: p,
 			}
 			edgeLoad = l
 		}
 	}
 
 	srte.state.UndoChanges()
-	return bestMove, bestMove.moveType != moveUnknown
+	return bestMove, bestMove.MoveType != MoveUnknown
 }
 
 func (srte *SRTE) SearchUpdate(edge int, demand int, maxUtil float64) (Move, bool) {
@@ -217,17 +218,17 @@ func (srte *SRTE) SearchUpdate(edge int, demand int, maxUtil float64) (Move, boo
 			}
 			if l := srte.state.Load(edge); l < edgeLoad {
 				bestMove = Move{
-					moveType: moveUpdate,
-					demand:   demand,
-					position: p,
-					node:     n,
+					MoveType: MoveUpdate,
+					Demand:   demand,
+					Position: p,
+					Node:     n,
 				}
 				edgeLoad = l
 			}
 		}
 	}
 
-	return bestMove, bestMove.moveType != moveUnknown
+	return bestMove, bestMove.MoveType != MoveUnknown
 }
 
 func (srte *SRTE) SearchInsert(edge int, demand int, maxUtil float64) (Move, bool) {
@@ -247,10 +248,10 @@ func (srte *SRTE) SearchInsert(edge int, demand int, maxUtil float64) (Move, boo
 			}
 			if l := srte.state.Load(edge); l < edgeLoad {
 				bestMove = Move{
-					moveType: moveInsert,
-					demand:   demand,
-					position: p,
-					node:     n,
+					MoveType: MoveInsert,
+					Demand:   demand,
+					Position: p,
+					Node:     n,
 				}
 				edgeLoad = l
 			}
@@ -258,7 +259,7 @@ func (srte *SRTE) SearchInsert(edge int, demand int, maxUtil float64) (Move, boo
 	}
 
 	srte.state.UndoChanges()
-	return bestMove, bestMove.moveType != moveUnknown
+	return bestMove, bestMove.MoveType != MoveUnknown
 }
 
 // checkMaxUtil returns true if the utilization of all the changed edges is

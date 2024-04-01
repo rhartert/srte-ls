@@ -3,7 +3,6 @@ module github.com/rhartert/srte-ls
 go 1.21
 
 require (
-	github.com/rhartert/sparsesets v1.0.1
 	github.com/rhartert/yagh v0.3.0
 )
 
