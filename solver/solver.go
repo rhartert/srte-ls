@@ -11,6 +11,13 @@ import (
 )
 
 type Config struct {
+	// Parameter alpha controls the likelihood of selecting an edge where the
+	// likelihood P(e) of selecting edge e is determined by its utilization
+	// raised to the power of alpha: P(e) = (util[e]^alpha) / Σ(util[j]^alpha).
+	// High values of alpha increase the probability of selecting the most
+	// utilized edge. By contrast, small values f alpha flatten the probability
+	// distribution. In particular, setting alpha to zero results in random
+	// uniform distribution.
 	Alpha float64
 }
 
@@ -64,9 +71,9 @@ func (lgs *LinkGuidedSolver) MaxUtilization() float64 {
 	return lgs.state.Utilization(lgs.MostUtilizedEdge())
 }
 
-// SelectEdge returns a randomly selected edge. The probability to select edge
-// e is calculated as follows P(e) = (util[e]^alpha) / Σ(util[j]^alpha) where
-// util(e) is the utilization of edge e.
+// SelectEdge selects edge using roulette wheel selection accordingly to random
+// number r in [0, 1). For more information about how edges are selected, refer
+// to parameter [Config.Alpha].
 func (lgs *LinkGuidedSolver) SelectEdge(r float64) int {
 	if r < 0 || 1 <= r {
 		log.Fatalf("r must be a random number in [0, 1), got: %f", r)
