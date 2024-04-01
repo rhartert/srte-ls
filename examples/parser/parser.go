@@ -54,7 +54,7 @@ func ParseDemands(filepath string) ([]srte.Demand, error) {
 	return demands, nil
 }
 
-func ParseNetwork(filepath string) (*srte.Digraph, []int64, error) {
+func ParseNetwork(filepath string) (*srte.Topology, []int64, error) {
 	file, err := os.Open(filepath)
 	if err != nil {
 		return nil, nil, err
@@ -115,5 +115,5 @@ func ParseNetwork(filepath string) (*srte.Digraph, []int64, error) {
 		})
 	}
 
-	return srte.NewDigraph(edges, nNodes), capacities, nil
+	return srte.NewTopology(edges, nNodes), capacities, nil
 }

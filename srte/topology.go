@@ -7,17 +7,17 @@ type Edge struct {
 	Cost int
 }
 
-// Digraph represents a directed graph.
-type Digraph struct {
+// Topology represents the topology of a network as a directed graph.
+type Topology struct {
 	Nexts [][]int
 	Edges []Edge
 }
 
-// NewDigraph creates a new directed graph with the specified edges and number
-// of nodes. It is important to ensure that edges are only between nodes within
+// NewTopology creates a new topology with the specified edges and number of
+// nodes. It is important to ensure that edges are only between nodes within
 // the range [0, nNodes); otherwise, the function will panic.
-func NewDigraph(edges []Edge, nNodes int) *Digraph {
-	dg := &Digraph{
+func NewTopology(edges []Edge, nNodes int) *Topology {
+	dg := &Topology{
 		Nexts: make([][]int, nNodes),
 		Edges: make([]Edge, len(edges)),
 	}

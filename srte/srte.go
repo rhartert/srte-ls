@@ -11,7 +11,7 @@ import (
 )
 
 type SRTEInstance struct {
-	Graph          *Digraph
+	Graph          *Topology
 	FGraphs        *FGraphs
 	MaxPathNodes   int
 	Demands        []Demand

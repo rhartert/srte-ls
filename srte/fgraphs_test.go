@@ -22,20 +22,20 @@ func TestFGraphs_EdgeRatios(t *testing.T) {
 func TestNew(t *testing.T) {
 	testCases := []struct {
 		desc    string
-		graph   *Digraph
+		graph   *Topology
 		want    *FGraphs
 		wantErr bool
 	}{
 		{
 			desc:  "empty graph",
-			graph: NewDigraph(nil, 0),
+			graph: NewTopology(nil, 0),
 			want: &FGraphs{
 				[][][]EdgeRatio{},
 			},
 		},
 		{
 			desc:  "single node",
-			graph: NewDigraph(nil, 1),
+			graph: NewTopology(nil, 1),
 			want: &FGraphs{
 				[][][]EdgeRatio{{nil}},
 			},
@@ -43,7 +43,7 @@ func TestNew(t *testing.T) {
 		{
 			// 0-->1
 			desc:  "one edge",
-			graph: NewDigraph([]Edge{{0, 1, 0}}, 2),
+			graph: NewTopology([]Edge{{0, 1, 0}}, 2),
 			want: &FGraphs{
 				[][][]EdgeRatio{
 					{
@@ -60,7 +60,7 @@ func TestNew(t *testing.T) {
 		{
 			// 0-->1   2-->3
 			desc:  "not connected",
-			graph: NewDigraph([]Edge{{0, 1, 1}, {2, 3, 1}}, 4),
+			graph: NewTopology([]Edge{{0, 1, 1}, {2, 3, 1}}, 4),
 			want: &FGraphs{
 				[][][]EdgeRatio{
 					{
@@ -96,7 +96,7 @@ func TestNew(t *testing.T) {
 			//     |   |
 			//     3<--4
 			desc: "two paths with bridge",
-			graph: NewDigraph([]Edge{
+			graph: NewTopology([]Edge{
 				{1, 0, 1}, // edge: 0
 				{2, 1, 1}, // edge: 1
 				{3, 1, 1}, // edge: 2
@@ -149,7 +149,7 @@ func TestNew(t *testing.T) {
 			// |       |
 			// +-->3<--+
 			desc: "strongly connected",
-			graph: NewDigraph([]Edge{
+			graph: NewTopology([]Edge{
 				{0, 1, 1}, // edge: 0
 				{1, 0, 1}, // edge: 1
 				{1, 2, 1}, // edge: 2
@@ -210,7 +210,7 @@ func TestNew(t *testing.T) {
 func TestNew_shortestPathDAG(t *testing.T) {
 	testCases := []struct {
 		desc    string
-		graph   *Digraph
+		graph   *Topology
 		src     int
 		want    [][]int
 		wantErr bool
@@ -221,24 +221,24 @@ func TestNew_shortestPathDAG(t *testing.T) {
 		},
 		{
 			desc:    "empty graph",
-			graph:   NewDigraph(nil, 0),
+			graph:   NewTopology(nil, 0),
 			wantErr: true,
 		},
 		{
 			desc:  "single node (no edge)",
-			graph: NewDigraph(nil, 1),
+			graph: NewTopology(nil, 1),
 			want:  [][]int{nil},
 		},
 		{
 			// 0-->1
 			desc:  "one edge",
-			graph: NewDigraph([]Edge{{0, 1, 0}}, 2),
+			graph: NewTopology([]Edge{{0, 1, 0}}, 2),
 			want:  [][]int{nil, {0}},
 		},
 		{
 			// 0-->1   2-->3
 			desc:  "not connected",
-			graph: NewDigraph([]Edge{{0, 1, 1}, {2, 3, 1}}, 4),
+			graph: NewTopology([]Edge{{0, 1, 1}, {2, 3, 1}}, 4),
 			want:  [][]int{nil, {0}, nil, nil},
 		},
 		{
@@ -247,7 +247,7 @@ func TestNew_shortestPathDAG(t *testing.T) {
 			//   \     |
 			//    +----+
 			desc: "one shortest path (A)",
-			graph: NewDigraph([]Edge{
+			graph: NewTopology([]Edge{
 				{0, 1, 1},
 				{1, 2, 1},
 				{0, 2, 3},
@@ -260,7 +260,7 @@ func TestNew_shortestPathDAG(t *testing.T) {
 			//   \     |
 			//    +----+
 			desc: "one shortest path (B)",
-			graph: NewDigraph([]Edge{
+			graph: NewTopology([]Edge{
 				{0, 1, 1},
 				{1, 2, 1},
 				{0, 2, 1},
@@ -273,7 +273,7 @@ func TestNew_shortestPathDAG(t *testing.T) {
 			//   \     |
 			//    +----+
 			desc: "two shortest paths",
-			graph: NewDigraph([]Edge{
+			graph: NewTopology([]Edge{
 				{0, 1, 1},
 				{1, 2, 1},
 				{0, 2, 2},
@@ -286,7 +286,7 @@ func TestNew_shortestPathDAG(t *testing.T) {
 			// |   |       |
 			// +-->4------>5
 			desc: "three shortest paths",
-			graph: NewDigraph([]Edge{
+			graph: NewTopology([]Edge{
 				{0, 1, 2}, // edge: 0
 				{1, 2, 2}, // edge: 1
 				{2, 3, 1}, // edge: 2

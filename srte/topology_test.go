@@ -6,16 +6,16 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestNewDigraph(t *testing.T) {
+func TestNewTopology(t *testing.T) {
 	testCases := []struct {
 		desc   string
 		edges  []Edge
 		nNodes int
-		want   *Digraph
+		want   *Topology
 	}{
 		{
 			desc: "empty digraph",
-			want: &Digraph{
+			want: &Topology{
 				Nexts: [][]int{},
 				Edges: []Edge{},
 			},
@@ -25,7 +25,7 @@ func TestNewDigraph(t *testing.T) {
 			desc:   "one edge",
 			edges:  []Edge{{0, 1, 0}},
 			nNodes: 2,
-			want: &Digraph{
+			want: &Topology{
 				Nexts: [][]int{{0}, nil},
 				Edges: []Edge{{0, 1, 0}},
 			},
@@ -35,7 +35,7 @@ func TestNewDigraph(t *testing.T) {
 			desc:   "not connected",
 			edges:  []Edge{{0, 1, 1}, {2, 3, 1}},
 			nNodes: 4,
-			want: &Digraph{
+			want: &Topology{
 				Nexts: [][]int{{0}, nil, {1}, nil},
 				Edges: []Edge{{0, 1, 1}, {2, 3, 1}},
 			},
@@ -57,7 +57,7 @@ func TestNewDigraph(t *testing.T) {
 				{3, 2, 1}, // edge: 7
 			},
 			nNodes: 4,
-			want: &Digraph{
+			want: &Topology{
 				Nexts: [][]int{
 					{0, 4},
 					{1, 2},
@@ -80,10 +80,10 @@ func TestNewDigraph(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			got := NewDigraph(tc.edges, tc.nNodes)
+			got := NewTopology(tc.edges, tc.nNodes)
 
 			if diff := cmp.Diff(tc.want, got); diff != "" {
-				t.Errorf("NewDigraph(): mismatch (-want +got):\n%s", diff)
+				t.Errorf("NewTopology(): mismatch (-want +got):\n%s", diff)
 			}
 		})
 	}

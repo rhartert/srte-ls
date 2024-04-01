@@ -26,7 +26,7 @@ func (fgs *FGraphs) EdgeRatios(s int, t int) []EdgeRatio {
 	return fgs.edgesRatios[s][t]
 }
 
-func NewFGraphs(g *Digraph) (*FGraphs, error) {
+func NewFGraphs(g *Topology) (*FGraphs, error) {
 	nNodes := len(g.Nexts)
 
 	fgs := &FGraphs{
@@ -81,7 +81,7 @@ func NewFGraphs(g *Digraph) (*FGraphs, error) {
 // the total fraction of traffic received at node u must be computed before
 // computing the fraction sent on the edge. This is done by processing the
 // nodes in their topological order.
-func forwardingGraph(g *Digraph, prevs [][]int, s int, t int) map[int]float64 {
+func forwardingGraph(g *Topology, prevs [][]int, s int, t int) map[int]float64 {
 	queue := []int{} // used by both steps below
 	nNodes := len(g.Nexts)
 
@@ -141,7 +141,7 @@ func forwardingGraph(g *Digraph, prevs [][]int, s int, t int) map[int]float64 {
 // incoming edges (u, v), where each edge represents a part of the shortest path
 // from src to v. If a node v is unreachable from src, its corresponding list
 // will be empty.
-func shortestDAG(g *Digraph, src int) ([][]int, error) {
+func shortestDAG(g *Topology, src int) ([][]int, error) {
 	if g == nil {
 		return nil, fmt.Errorf("digraph is nil")
 	}
