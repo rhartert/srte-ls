@@ -1,7 +1,3 @@
-// TODO:
-// - Use roulette selection for edges.
-// - Maintain ordering of demands per edge (e.g. using a linked RB-Tree).
-
 package srte
 
 import (
@@ -52,7 +48,13 @@ type SRTE struct {
 
 	Instance *SRTEInstance
 
-	edgesByUsage  *yagh.IntMap[float64]
+	// Maintain the most loaded edge.
+	edgesByUsage *yagh.IntMap[float64]
+
+	// Set of demands sending traffic over each edge.
+	//
+	// TODO: replace this with a datastructure that will allow a more efficient
+	// demand selection (e.g. a linked RB tree).
 	edgesToDemand []map[int]bool
 
 	// These two sparse sets are used to efficiently maintain the list of
@@ -94,8 +96,11 @@ func NewSRTE(instance *SRTEInstance) (*SRTE, error) {
 	// Order edges by descending usage. This data structure will be maintained
 	// through the state of the search to easily access the most loaded edge.
 	edgesByUsage := yagh.New[float64](nEdges)
+	edgeWheel := NewSumTree(nEdges)
 	for e, l := range state.loads {
-		edgesByUsage.Put(e, -float64(l)/float64(instance.LinkCapacities[e]))
+		util := float64(l) / float64(instance.LinkCapacities[e])
+		edgeWheel.SetWeight(e, math.Pow(util, 8))
+		edgesByUsage.Put(e, -util)
 	}
 
 	return &SRTE{
@@ -111,7 +116,8 @@ func NewSRTE(instance *SRTEInstance) (*SRTE, error) {
 }
 
 func (srte *SRTE) MostUtilizedEdge() int {
-	return srte.edgesByUsage.Min().Elem
+	entry, _ := srte.edgesByUsage.Min()
+	return entry.Elem
 }
 
 func (srte *SRTE) Utilization(edge int) float64 {
@@ -135,7 +141,7 @@ func (srte *SRTE) SelectDemand(edge int) int {
 	return i
 }
 
-func (srte *SRTE) ApplyMove(m Move) {
+func (srte *SRTE) ApplyMove(m Move, persist bool) {
 	movedApplied := false // whether the move was applied or not
 
 	srte.State.UndoChanges()
@@ -169,8 +175,22 @@ func (srte *SRTE) ApplyMove(m Move) {
 	}
 	srte.addDemandEdges(m.demand, srte.edgesAfter)
 	srte.updateEdgeDemand(m.demand)
-	srte.updateEdgeOrder()
+
+	if persist {
+		srte.PersistChanges()
+	}
+}
+
+func (srte *SRTE) PersistChanges() {
+	for _, lc := range srte.State.Changes() {
+		cost := -srte.Utilization(lc.Edge) // sort by decreasing utilization
+		srte.edgesByUsage.Put(lc.Edge, cost)
+	}
 	srte.State.PersistChanges()
+}
+
+func (srte *SRTE) Changes() []LoadChange {
+	return srte.State.Changes()
 }
 
 func (srte *SRTE) Search(edge int, demand int, strict bool) (Move, bool) {
@@ -191,6 +211,7 @@ func (srte *SRTE) Search(edge int, demand int, strict bool) (Move, bool) {
 
 func (srte *SRTE) SearchClear(edge int, demand int, strict bool) (Move, bool) {
 	edgeLoad := srte.State.Load(edge)
+	maxUtil := srte.Utilization(srte.MostUtilizedEdge())
 
 	srte.State.UndoChanges()
 	ok := !srte.Clear(demand)
@@ -199,7 +220,7 @@ func (srte *SRTE) SearchClear(edge int, demand int, strict bool) (Move, bool) {
 	if !ok {
 		return Move{}, false
 	}
-	if strict && !srte.checkMaxUtil() {
+	if strict && !srte.checkMaxUtil(maxUtil) {
 		return Move{}, false
 	}
 	if l := srte.State.Load(edge); l >= edgeLoad {
@@ -211,6 +232,7 @@ func (srte *SRTE) SearchClear(edge int, demand int, strict bool) (Move, bool) {
 
 func (srte *SRTE) SearchRemove(edge int, demand int, strict bool) (Move, bool) {
 	edgeLoad := srte.State.Load(edge)
+	maxUtil := srte.Utilization(srte.MostUtilizedEdge())
 	pathVar := srte.PathVar[demand]
 
 	bestMove := Move{}
@@ -219,7 +241,7 @@ func (srte *SRTE) SearchRemove(edge int, demand int, strict bool) (Move, bool) {
 		if !srte.Remove(demand, p) {
 			continue
 		}
-		if strict && !srte.checkMaxUtil() {
+		if strict && !srte.checkMaxUtil(maxUtil) {
 			continue
 		}
 		if l := srte.State.Load(edge); l < edgeLoad {
@@ -239,6 +261,7 @@ func (srte *SRTE) SearchRemove(edge int, demand int, strict bool) (Move, bool) {
 func (srte *SRTE) SearchUpdate(edge int, demand int, strict bool) (Move, bool) {
 	nNodes := len(srte.Instance.Graph.Nexts)
 	edgeLoad := srte.State.Load(edge)
+	maxUtil := srte.Utilization(srte.MostUtilizedEdge())
 	pathVar := srte.PathVar[demand]
 
 	bestMove := Move{}
@@ -248,7 +271,7 @@ func (srte *SRTE) SearchUpdate(edge int, demand int, strict bool) (Move, bool) {
 			if !srte.Update(demand, p, n) {
 				continue
 			}
-			if strict && !srte.checkMaxUtil() {
+			if strict && !srte.checkMaxUtil(maxUtil) {
 				continue
 			}
 			if l := srte.State.Load(edge); l < edgeLoad {
@@ -268,6 +291,7 @@ func (srte *SRTE) SearchUpdate(edge int, demand int, strict bool) (Move, bool) {
 func (srte *SRTE) SearchInsert(edge int, demand int, strict bool) (Move, bool) {
 	nNodes := len(srte.Instance.Graph.Nexts)
 	edgeLoad := srte.State.Load(edge)
+	maxUtil := srte.Utilization(srte.MostUtilizedEdge())
 	pathVar := srte.PathVar[demand]
 	bestMove := Move{}
 
@@ -277,7 +301,7 @@ func (srte *SRTE) SearchInsert(edge int, demand int, strict bool) (Move, bool) {
 			if !srte.Insert(demand, p, n) {
 				continue
 			}
-			if strict && !srte.checkMaxUtil() {
+			if strict && !srte.checkMaxUtil(maxUtil) {
 				continue
 			}
 			if l := srte.State.Load(edge); l < edgeLoad {
@@ -375,18 +399,9 @@ func load(bw int64, ratio float64) int64 {
 	return int64(math.Ceil(float64(bw) * ratio))
 }
 
-func (srte *SRTE) updateEdgeOrder() {
+func (srte *SRTE) checkMaxUtil(maxUtil float64) bool {
 	for _, lc := range srte.State.Changes() {
-		e := lc.Edge
-		srte.edgesByUsage.Put(e, -srte.Utilization(e)) // reverse order
-	}
-}
-
-func (srte *SRTE) checkMaxUtil() bool {
-	e := srte.MostUtilizedEdge()
-	maxUtil := srte.Utilization(e)
-	for _, lc := range srte.State.Changes() {
-		if srte.Utilization(lc.Edge) > maxUtil {
+		if srte.Utilization(lc.Edge) >= maxUtil {
 			return false
 		}
 	}

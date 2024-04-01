@@ -162,7 +162,7 @@ func shortestDAG(g *Digraph, src int) ([][]int, error) {
 	costs[src] = 0
 
 	for h.Size() > 0 {
-		entry := h.Pop()
+		entry, _ := h.Pop()
 		u, c := entry.Elem, entry.Cost
 
 		for _, e := range g.Nexts[u] {

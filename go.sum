@@ -2,5 +2,5 @@ github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/rhartert/sparsesets v1.0.1 h1:x/3ajojpVs2zy8pDd+6xa7N/tUjXwIh4NZtOPuvfODY=
 github.com/rhartert/sparsesets v1.0.1/go.mod h1:4JPn5hcmjUy8oFfzRUQY5RIS+m0pOEJKSvzuJxjFc6o=
-github.com/rhartert/yagh v0.0.0 h1:DCWbFDcNYe9mUKtLxN1ZHWJMuHQKxDll9748RK9Wr6I=
-github.com/rhartert/yagh v0.0.0/go.mod h1:INOoPnLEKdV3MwE3mRvQS/iH0xVpNTYKM/UBYPYiQUA=
+github.com/rhartert/yagh v0.3.0 h1:N1t7+27FLnlADw3GAOWc+v5nc0+IBaLlWVnUxG+oLaU=
+github.com/rhartert/yagh v0.3.0/go.mod h1:INOoPnLEKdV3MwE3mRvQS/iH0xVpNTYKM/UBYPYiQUA=

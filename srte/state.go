@@ -2,10 +2,11 @@ package srte
 
 import "math"
 
-// LoadChange is a pair that contains the load of an edge before it was changed.
+// LoadChange is a pair made of an edge and its load before any change was
+// applied to the current state.
 type LoadChange struct {
-	Edge      int
-	SavedLoad int64
+	Edge         int
+	PreviousLoad int64
 }
 
 // NetworkState is a reversible structure which represents the state of the
@@ -74,7 +75,7 @@ func (s *NetworkState) UndoChanges() {
 	for s.nChanges > 0 {
 		s.nChanges -= 1
 		lc := s.changes[s.nChanges]
-		s.loads[lc.Edge] = lc.SavedLoad
+		s.loads[lc.Edge] = lc.PreviousLoad
 	}
 	s.incrTimestamp()
 }
