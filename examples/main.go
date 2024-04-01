@@ -9,6 +9,7 @@ import (
 
 	"github.com/rhartert/srte-ls/examples/parser"
 	"github.com/rhartert/srte-ls/srte"
+	"github.com/rhartert/yagh"
 )
 
 var flagNetworkFile = flag.String(
@@ -124,6 +125,21 @@ func srteState() *srte.SRTE {
 	return state
 }
 
+func selectDemand(demands map[int]int64) int {
+	bestLoad := int64(0)
+	bestDemand := -1
+	for d, l := range demands {
+		switch {
+		case l == bestLoad && d < bestDemand:
+			bestDemand = d
+		case bestLoad < l:
+			bestLoad = l
+			bestDemand = d
+		}
+	}
+	return bestDemand
+}
+
 func main() {
 	flag.Parse()
 	if err := validateFlags(); err != nil {
@@ -134,13 +150,27 @@ func main() {
 	rng := rand.New(rand.NewSource(*flagSeed))
 	nEdges := len(state.Instance.Graph.Edges)
 
-	// Datastructure to enable fast random selection of edges.
+	// Enable fast random selection of edges.
 	edgeWheel := srte.NewSumTree(nEdges)
+	// Maintain the most utilized edge.
+	edgesByUtilization := yagh.New[float64](nEdges)
+	// Set of demands (and traffic) for each edge.
+	edgesToDemand := make([]map[int]int64, nEdges)
+
 	for e := 0; e < nEdges; e++ {
 		edgeWheel.SetWeight(e, math.Pow(state.Utilization(e), *flagAlpha))
+		edgesByUtilization.Put(e, -state.Utilization(e)) // non-decreasing order
+		edgesToDemand[e] = map[int]int64{}
 	}
 
-	maxUtil := state.Utilization(state.MostUtilizedEdge())
+	for i, d := range state.Instance.Demands {
+		for _, er := range state.FGraphs.EdgeRatios(d.From, d.To) {
+			edgesToDemand[er.Edge][i] = srte.SplitLoad(d.Bandwidth, er.Ratio)
+		}
+	}
+
+	mostUtilizedEdge, _ := edgesByUtilization.Min()
+	maxUtil := state.Utilization(mostUtilizedEdge.Elem)
 	fmt.Printf("Initial utilization: %.3f\n", maxUtil)
 	for iter := 0; iter < *flagMaxIterations; iter++ {
 		// Randomly select the next edge to improve. The most utilized an edge
@@ -148,7 +178,7 @@ func main() {
 		e := edgeWheel.Get(rng.Float64() * edgeWheel.TotalWeight())
 
 		// Select the demand with the highest traffic on the edge.
-		d := state.SelectDemand(e)
+		d := selectDemand(edgesToDemand[e])
 
 		// Search for a move that reduces the load of the selected edge and does
 		// not increase the maximum utilization of the network.
@@ -163,13 +193,29 @@ func main() {
 		// Update structures for fast selection by iterating on the edges that
 		// were impacted by the move.
 		for _, lc := range state.Changes() {
-			edgeWheel.SetWeight(lc.Edge, math.Pow(state.Utilization(lc.Edge), *flagAlpha))
+			util := state.Utilization(lc.Edge)
+			edgeWheel.SetWeight(lc.Edge, math.Pow(util, *flagAlpha))
+			edgesByUtilization.Put(lc.Edge, -util) // non-decreasing order
+
+			// Efficiently maintain the list of demands on each edge by
+			// comparing the load change and how much traffic the demand was
+			// sending on the edge prior to the change.
+			prev := edgesToDemand[lc.Edge][d]
+			switch delta := state.Load(lc.Edge) - lc.PreviousLoad; {
+			case prev == 0: // the demand was not sending traffic before
+				edgesToDemand[lc.Edge][d] = delta
+			case prev == -delta: // all the demand's traffic is removed
+				delete(edgesToDemand[lc.Edge], d)
+			default: // the demand traffic has changed but is non-null
+				edgesToDemand[lc.Edge][d] += delta
+			}
 		}
 
 		// Persist the changes now that the structures have been updated.
 		state.PersistChanges()
 
-		maxUtil = state.Utilization(state.MostUtilizedEdge())
+		mostUtilizedEdge, _ = edgesByUtilization.Min()
+		maxUtil = state.Utilization(mostUtilizedEdge.Elem)
 		fmt.Printf("iter %d, best utilization: %f\n", iter, maxUtil)
 	}
 }

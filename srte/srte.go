@@ -5,9 +5,7 @@ import (
 	"log"
 	"math"
 
-	"github.com/rhartert/sparsesets"
 	"github.com/rhartert/srte-ls/srte/paths"
-	"github.com/rhartert/yagh"
 )
 
 type SRTEInstance struct {
@@ -45,23 +43,14 @@ type SRTE struct {
 	FGraphs  *FGraphs
 	PathVar  []paths.PathVar
 	Instance *SRTEInstance
+	state    *NetworkState
+}
 
-	state *NetworkState
-
-	// Maintain the most loaded edge.
-	edgesByUsage *yagh.IntMap[float64]
-
-	// Set of demands sending traffic over each edge.
-	//
-	// TODO: replace this with a datastructure that will allow a more efficient
-	// demand selection (e.g. a linked RB tree).
-	edgesToDemand []map[int]bool
-
-	// These two sparse sets are used to efficiently maintain the list of
-	// demands passing through each edges. These sets are pre-allocated so that
-	// they can be used by several moves.
-	edgesBefore *sparsesets.Set
-	edgesAfter  *sparsesets.Set
+// SplitLoad calculates the portion of the load based on the given ratio and
+// converts it to an integer to guarantee numerical stability. SplitLoad is
+// used for all splitting operations in this package.
+func SplitLoad(load int64, ratio float64) int64 {
+	return int64(math.Ceil(float64(load) * ratio))
 }
 
 func NewSRTE(instance *SRTEInstance) (*SRTE, error) {
@@ -78,67 +67,29 @@ func NewSRTE(instance *SRTEInstance) (*SRTE, error) {
 		demandPaths = append(demandPaths, paths.New(d.From, d.To, instance.MaxPathNodes-1))
 	}
 
-	edgesToDemand := make([]map[int]bool, nEdges)
-	for e := range edgesToDemand {
-		edgesToDemand[e] = map[int]bool{}
-	}
-
 	// Initialize the network state and add the traffic of each demand.
 	state := NewNetworkState(nEdges)
-	for i, d := range instance.Demands {
+	for _, d := range instance.Demands {
 		for _, er := range fgraphs.EdgeRatios(d.From, d.To) {
-			state.AddLoad(er.Edge, load(d.Bandwidth, er.Ratio))
-			edgesToDemand[er.Edge][i] = true
+			state.AddLoad(er.Edge, SplitLoad(d.Bandwidth, er.Ratio))
 		}
 	}
 	state.PersistChanges() // mark the initial state
 
-	// Order edges by descending usage. This data structure will be maintained
-	// through the state of the search to easily access the most loaded edge.
-	edgesByUsage := yagh.New[float64](nEdges)
-	edgeWheel := NewSumTree(nEdges)
-	for e, l := range state.loads {
-		util := float64(l) / float64(instance.LinkCapacities[e])
-		edgeWheel.SetWeight(e, math.Pow(util, 8))
-		edgesByUsage.Put(e, -util)
-	}
-
 	return &SRTE{
-		FGraphs:       fgraphs,
-		PathVar:       demandPaths,
-		Instance:      instance,
-		state:         state,
-		edgesBefore:   sparsesets.New(nEdges),
-		edgesAfter:    sparsesets.New(nEdges),
-		edgesByUsage:  edgesByUsage,
-		edgesToDemand: edgesToDemand,
+		FGraphs:  fgraphs,
+		PathVar:  demandPaths,
+		Instance: instance,
+		state:    state,
 	}, nil
 }
 
-func (srte *SRTE) MostUtilizedEdge() int {
-	entry, _ := srte.edgesByUsage.Min()
-	return entry.Elem
+func (srte *SRTE) Load(edge int) int64 {
+	return srte.state.Load(edge)
 }
 
 func (srte *SRTE) Utilization(edge int) float64 {
 	return float64(srte.state.Load(edge)) / float64(srte.Instance.LinkCapacities[edge])
-}
-
-func (srte *SRTE) SelectDemand(edge int) int {
-	best := int64(0)
-	i := -1
-	for k := range srte.edgesToDemand[edge] {
-		l := srte.Instance.Demands[k].Bandwidth
-		if l > best {
-			best = l
-			i = k
-			continue
-		}
-		if l == best && k > i {
-			i = k
-		}
-	}
-	return i
 }
 
 func (srte *SRTE) ApplyMove(m Move, persist bool) {
@@ -162,7 +113,6 @@ func (srte *SRTE) ApplyMove(m Move, persist bool) {
 		return
 	}
 
-	srte.addDemandEdges(m.demand, srte.edgesBefore)
 	switch m.moveType {
 	case moveClear:
 		srte.PathVar[m.demand].Clear()
@@ -173,8 +123,6 @@ func (srte *SRTE) ApplyMove(m Move, persist bool) {
 	case moveInsert:
 		srte.PathVar[m.demand].Insert(m.position, m.node)
 	}
-	srte.addDemandEdges(m.demand, srte.edgesAfter)
-	srte.updateEdgeDemand(m.demand)
 
 	if persist {
 		srte.PersistChanges()
@@ -182,10 +130,6 @@ func (srte *SRTE) ApplyMove(m Move, persist bool) {
 }
 
 func (srte *SRTE) PersistChanges() {
-	for _, lc := range srte.state.Changes() {
-		cost := -srte.Utilization(lc.Edge) // sort by decreasing utilization
-		srte.edgesByUsage.Put(lc.Edge, cost)
-	}
 	srte.state.PersistChanges()
 }
 
@@ -209,9 +153,8 @@ func (srte *SRTE) Search(edge int, demand int, maxutil float64) (Move, bool) {
 	return Move{}, false
 }
 
-func (srte *SRTE) SearchClear(edge int, demand int, maxutil float64) (Move, bool) {
+func (srte *SRTE) SearchClear(edge int, demand int, maxUtil float64) (Move, bool) {
 	edgeLoad := srte.state.Load(edge)
-	maxUtil := srte.Utilization(srte.MostUtilizedEdge())
 
 	srte.state.UndoChanges()
 	ok := !srte.Clear(demand)
@@ -230,9 +173,8 @@ func (srte *SRTE) SearchClear(edge int, demand int, maxutil float64) (Move, bool
 	return Move{moveType: moveClear, demand: demand}, true
 }
 
-func (srte *SRTE) SearchRemove(edge int, demand int, maxutil float64) (Move, bool) {
+func (srte *SRTE) SearchRemove(edge int, demand int, maxUtil float64) (Move, bool) {
 	edgeLoad := srte.state.Load(edge)
-	maxUtil := srte.Utilization(srte.MostUtilizedEdge())
 	pathVar := srte.PathVar[demand]
 
 	bestMove := Move{}
@@ -405,43 +347,14 @@ func (srte *SRTE) Insert(demand int, pos int, node int) bool {
 	return true
 }
 
-func load(bw int64, ratio float64) int64 {
-	return int64(math.Ceil(float64(bw) * ratio))
-}
-
 func (srte *SRTE) removeLoad(from int, to int, bw int64) {
 	for _, er := range srte.FGraphs.EdgeRatios(from, to) {
-		srte.state.RemoveLoad(er.Edge, load(bw, er.Ratio))
+		srte.state.RemoveLoad(er.Edge, SplitLoad(bw, er.Ratio))
 	}
 }
 
 func (srte *SRTE) addLoad(from int, to int, bw int64) {
 	for _, er := range srte.FGraphs.EdgeRatios(from, to) {
-		srte.state.AddLoad(er.Edge, load(bw, er.Ratio))
+		srte.state.AddLoad(er.Edge, SplitLoad(bw, er.Ratio))
 	}
-}
-
-func (srte *SRTE) addDemandEdges(demand int, set *sparsesets.Set) {
-	set.Clear()
-	nodes := srte.PathVar[demand].Nodes()
-	for i := 1; i < len(nodes); i++ {
-		for _, er := range srte.FGraphs.EdgeRatios(nodes[i-1], nodes[i]) {
-			set.Insert(er.Edge)
-		}
-	}
-}
-
-func (srte *SRTE) updateEdgeDemand(demand int) {
-	for _, e := range srte.edgesBefore.Content() {
-		if !srte.edgesAfter.Contains(e) {
-			delete(srte.edgesToDemand[e], demand)
-		}
-	}
-	for _, e := range srte.edgesAfter.Content() {
-		if !srte.edgesBefore.Contains(e) {
-			srte.edgesToDemand[e][demand] = true
-		}
-	}
-	srte.edgesBefore.Clear()
-	srte.edgesAfter.Clear()
 }
