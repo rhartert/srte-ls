@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"time"
 
 	"github.com/rhartert/srte-ls/examples/parser"
 	"github.com/rhartert/srte-ls/solver"
@@ -43,7 +44,7 @@ var flagMaxNodesPerPath = flag.Int(
 
 var flagMaxIterations = flag.Int(
 	"max_iterations",
-	1000,
+	10000,
 	"",
 )
 
@@ -130,12 +131,16 @@ func main() {
 		log.Fatalf("Error validating flags: %s", err)
 	}
 
+	parseStart := time.Now()
+
 	rng := rand.New(rand.NewSource(*flagSeed))
 	lgs := solver.NewLinkGuidedSolver(srteState(), solver.Config{
 		Alpha: *flagAlpha,
 	})
 
-	fmt.Printf("Initial utilization: %.3f\n", lgs.MaxUtilization())
+	startUtil := lgs.MaxUtilization()
+	optStart := time.Now()
+
 	for iter := 0; iter < *flagMaxIterations; iter++ {
 		// Randomly select the next edge to improve. The more utilized an edge
 		// is, the more likely it is to be selected.
@@ -152,7 +157,12 @@ func main() {
 			continue
 		}
 		lgs.ApplyMove(move)
-
-		fmt.Printf("iter %d, best utilization: %f\n", iter, lgs.MaxUtilization())
 	}
+
+	totalTime := time.Since(parseStart)
+	optTime := time.Since(optStart)
+	fmt.Printf("total time (ms):        %v\n", totalTime.Milliseconds())
+	fmt.Printf("optimization time (ms): %v\n", optTime.Milliseconds())
+	fmt.Printf("utilization (before):   %f\n", startUtil)
+	fmt.Printf("utilization (after):    %f\n", lgs.MaxUtilization())
 }
