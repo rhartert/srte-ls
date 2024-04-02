@@ -13,13 +13,13 @@ import (
 
 var flagNetworkFile = flag.String(
 	"network",
-	"data/rf1239.graph",
+	"data/synth100.graph",
 	"",
 )
 
 var flagDemandFile = flag.String(
 	"demands",
-	"data/rf1239.demands",
+	"data/synth100.demands",
 	"",
 )
 
@@ -137,12 +137,13 @@ func main() {
 
 	fmt.Printf("Initial utilization: %.3f\n", lgs.MaxUtilization())
 	for iter := 0; iter < *flagMaxIterations; iter++ {
-		// Randomly select the next edge to improve. The most utilized an edge
-		// is, the most likely it is to be selected.
+		// Randomly select the next edge to improve. The more utilized an edge
+		// is, the more likely it is to be selected.
 		e := lgs.SelectEdge(rng.Float64())
 
-		// Select the demand with the highest traffic on the selected edge.
-		d := lgs.SelectDemand(e)
+		// Select the demand to move. The more a demand contributes to the
+		// edge's load, the more likely it is to be selected.
+		d := lgs.SelectDemand(e, rng.Float64())
 
 		// Search for a move that reduces the load of the selected edge and does
 		// not increase the maximum utilization of the network.
@@ -150,8 +151,8 @@ func main() {
 		if !found {
 			continue
 		}
-
 		lgs.ApplyMove(move)
+
 		fmt.Printf("iter %d, best utilization: %f\n", iter, lgs.MaxUtilization())
 	}
 }
