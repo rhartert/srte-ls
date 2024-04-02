@@ -13,12 +13,24 @@ import (
 type Config struct {
 	// Parameter alpha controls the likelihood of selecting an edge where the
 	// likelihood P(e) of selecting edge e is determined by its utilization
-	// raised to the power of alpha: P(e) = (util[e]^alpha) / Σ(util[j]^alpha).
+	// raised to the power of alpha: P(e) = (util[e]^alpha) / Σ(util[ei]^alpha).
 	// High values of alpha increase the probability of selecting the most
 	// utilized edges. By contrast, small values of alpha flatten the
 	// probability distribution. In particular, setting alpha to zero results
 	// in random uniform selection.
 	Alpha float64
+
+	// WARNING: this parameter is currently ignored by the solver.
+	//
+	// Parameter beta controls the likelihood of selecting a demand where the
+	// likelihood P(d|e) of selecting demand d on edge e is determined by the
+	// demand's contribution to the utilization of edge e, raised to the power
+	// of beta: P(d|e) = (util[e, d]^beta) / Σ(util[e, di]^alpha). High values
+	// of beta increase the probability of selecting the demand with the highest
+	// contribution. By contrast, small values of beta flatten the probability
+	// distribution. In particular, setting alpha to zero results in random
+	// uniform selection.
+	Beta float64
 }
 
 type LinkGuidedSolver struct {
@@ -73,13 +85,15 @@ func (lgs *LinkGuidedSolver) MaxUtilization() float64 {
 
 // SelectEdge selects edge using roulette wheel selection accordingly to random
 // number r in [0, 1). For more information about how edges are selected, refer
-// to parameter [Config.Alpha].
+// to parameter Alpha in [Config].
 func (lgs *LinkGuidedSolver) SelectEdge(r float64) int {
 	return lgs.edgeWheel.Roll(r)
 }
 
-// SelectDemand returns the demand that sends the most traffic on the given
-// edge. It returns -1 if no demand sends traffic on the edge.
+// SelectDemand selects a demand passing through a given edge using roulette
+// wheel selection accordingly to random number r in [0, 1). For more
+// information about how demands are selected, refer to parameter Beta in
+// [Config].
 func (lgs *LinkGuidedSolver) SelectDemand(edge int, r float64) int {
 	return lgs.demandWheels[edge].Roll(r)
 }
