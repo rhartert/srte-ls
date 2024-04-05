@@ -74,13 +74,13 @@ func validateFlags() error {
 		return fmt.Errorf("missing demands file")
 	}
 	if n := *flagScaling; n <= 0 {
-		return fmt.Errorf("scaling should be greater than 0, got %d", n)
+		return fmt.Errorf("scaling must be greater than 0, got %d", n)
 	}
-	if n := *flagMaxNodesPerPath; n <= 0 {
-		return fmt.Errorf("paths must have at least 1 intermediate nodes, got: %d", n)
+	if n := *flagMaxNodesPerPath; n < 0 {
+		return fmt.Errorf("number of intermediate nodes must be non-negative, got: %d", n)
 	}
 	if n := *flagMaxIterations; n < 0 {
-		return fmt.Errorf("number of iterations should be positive, got: %d", n)
+		return fmt.Errorf("number of iterations must be non-negative, got: %d", n)
 	}
 	if n := *flagAlpha; n < 0 {
 		return fmt.Errorf("parameter alpha must be non-negative, got: %f", n)
