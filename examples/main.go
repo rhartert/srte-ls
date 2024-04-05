@@ -15,55 +15,55 @@ import (
 var flagNetworkFile = flag.String(
 	"network",
 	"data/synth100.graph",
-	"",
+	"Path to the network file",
 )
 
 var flagDemandFile = flag.String(
 	"demands",
 	"data/synth100.demands",
-	"",
+	"Path to the demand file",
 )
 
 var flagUseUnaryWeights = flag.Bool(
 	"unary_weights",
 	true,
-	"",
+	"Use unary weights for the network",
 )
 
 var flagScaling = flag.Int64(
 	"scaling",
 	1000,
-	"",
+	"Scaling factor applied on load/capacity to reduce rounding errors",
 )
 
 var flagMaxNodesPerPath = flag.Int(
 	"max_nodes",
-	4,
-	"",
+	2,
+	"Maximum number of intermediate nodes per path",
 )
 
 var flagMaxIterations = flag.Int(
 	"max_iterations",
 	10000,
-	"",
+	"Maximum number of iterations for the algorithm",
 )
 
 var flagSeed = flag.Int64(
 	"seed",
 	42,
-	"",
+	"Seed value for the random number generator",
 )
 
 var flagAlpha = flag.Float64(
 	"alpha",
 	8.0,
-	"",
+	"Alpha parameter for edge selection",
 )
 
 var flagBeta = flag.Float64(
 	"beta",
 	2.0,
-	"",
+	"Beta parameter for demand selection",
 )
 
 func validateFlags() error {
