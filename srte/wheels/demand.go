@@ -6,7 +6,7 @@ type DemandWheel struct {
 	offset  int
 	size    int
 	weights []int64
-	values  []int
+	elems   []int
 	hash    map[int]int
 }
 
@@ -16,7 +16,7 @@ func NewDemandWheel(initSize int) *DemandWheel {
 		offset:  offset,
 		size:    0,
 		weights: make([]int64, offset*2),
-		values:  make([]int, offset*2),
+		elems:   make([]int, offset*2),
 		hash:    make(map[int]int, initSize),
 	}
 }
@@ -46,13 +46,13 @@ func (st *DemandWheel) update(i int, weight int64) {
 }
 
 func (st *DemandWheel) insert(elem int, weight int64) {
-	n := st.offset + st.size
-	if n == len(st.weights) {
+	if st.offset+st.size == len(st.weights) {
 		st.grow()
 	}
 
+	n := st.offset + st.size
 	st.weights[n] = weight
-	st.values[n] = elem
+	st.elems[n] = elem
 	st.hash[elem] = st.size
 	st.size++
 
@@ -64,19 +64,22 @@ func (st *DemandWheel) Remove(elem int) {
 	if !ok {
 		return
 	}
-	delete(st.hash, i)
 
-	// Move the last node to the position of the removed node.
+	delete(st.hash, elem)
+
 	st.size--
-	node := st.offset + i
+	delNode := st.offset + i
 	lastNode := st.offset + st.size
-	st.weights[node] = st.weights[lastNode]
-	st.values[node] = st.values[lastNode]
-	st.hash[st.values[node]] = i
 
-	// Recompute the internal weights up from the two impacted nodes.
+	if delNode != lastNode {
+		st.weights[delNode] = st.weights[lastNode]
+		st.elems[delNode] = st.elems[lastNode]
+		st.hash[st.elems[lastNode]] = i
+		st.propagate(delNode)
+	}
+
+	st.weights[lastNode] = 0
 	st.propagate(lastNode)
-	st.propagate(node)
 }
 
 func (st *DemandWheel) Get(elem int) int64 {
@@ -106,7 +109,7 @@ func (st *DemandWheel) Roll(roll float64) int {
 			w -= st.weights[l]
 		}
 	}
-	return st.values[i]
+	return st.elems[i]
 }
 
 func (st *DemandWheel) propagate(i int) {
@@ -120,11 +123,11 @@ func (st *DemandWheel) propagate(i int) {
 func (st *DemandWheel) grow() {
 	newOffset := len(st.weights)
 	newWeights := make([]int64, newOffset*2)
-	newValues := make([]int, newOffset*2)
+	newElems := make([]int, newOffset*2)
 	copy(newWeights[newOffset:], st.weights[st.offset:])
-	copy(newValues[newOffset:], st.values[st.offset:])
+	copy(newElems[newOffset:], st.elems[st.offset:])
 	st.weights = newWeights
-	st.values = newValues
+	st.elems = newElems
 	st.offset = newOffset
 	for p := st.offset - 1; p > 0; p-- {
 		l := p * 2

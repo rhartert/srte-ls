@@ -24,8 +24,8 @@ type PathVar struct {
 }
 
 // New instantiates and returns a new PathVar.
-func New(from int, to int, maxNodes int) PathVar {
-	p := PathVar{path: make([]int, maxNodes)}
+func New(from int, to int, maxNodes int) *PathVar {
+	p := &PathVar{path: make([]int, maxNodes)}
 	p.path[0] = from
 	p.path[1] = to
 	p.length = 2

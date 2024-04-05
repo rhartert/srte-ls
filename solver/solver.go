@@ -122,15 +122,16 @@ func (lgs *LinkGuidedSolver) ApplyMove(move srte.Move) bool {
 		lgs.edgeWheel.SetWeight(lc.Edge, math.Pow(util, lgs.cfg.Alpha))
 		lgs.edgesByUtil.Put(lc.Edge, -util) // non-decreasing order
 
-		// Efficiently maintain the list of demands on each edge by comparing
-		// the load change on the edge and how much traffic the demand was
-		// sending on the edge prior to the change.
-		traffic := lgs.demandWheels[lc.Edge].Get(move.Demand)
+		// Efficiently maintain the list of demands passing through the edge
+		// by comparing the load before and after the move. The trick is that
+		// the edge load change can only be caused by the demand being moved.
+		oldTraffic := lgs.demandWheels[lc.Edge].Get(move.Demand)
 		delta := lgs.state.Load(lc.Edge) - lc.PreviousLoad
-		if traffic-delta == 0 { // all the demand's traffic has been removed
+		newTraffic := oldTraffic + delta
+		if newTraffic == 0 {
 			lgs.demandWheels[lc.Edge].Remove(move.Demand)
 		} else {
-			lgs.demandWheels[lc.Edge].Put(move.Demand, traffic+delta)
+			lgs.demandWheels[lc.Edge].Put(move.Demand, newTraffic)
 		}
 	}
 

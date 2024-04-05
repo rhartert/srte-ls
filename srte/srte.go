@@ -41,7 +41,7 @@ type Move struct {
 
 type SRTE struct {
 	FGraphs  *FGraphs
-	PathVar  []paths.PathVar
+	PathVar  []*paths.PathVar
 	Instance *SRTEInstance
 	state    *NetworkState
 }
@@ -62,7 +62,7 @@ func NewSRTE(instance *SRTEInstance) (*SRTE, error) {
 	}
 
 	// Initialize one path variable for each demand.
-	demandPaths := make([]paths.PathVar, 0, len(instance.Demands))
+	demandPaths := make([]*paths.PathVar, 0, len(instance.Demands))
 	for _, d := range instance.Demands {
 		demandPaths = append(demandPaths, paths.New(d.From, d.To, instance.MaxPathNodes-1))
 	}
