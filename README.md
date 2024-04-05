@@ -30,7 +30,7 @@ The `examples` directory contains a complete implementation of a LGS solver. Fol
 ```sh
 cd examples
 go build
-./examples --max_iterations=10000
+./examples
 ```
 
 Upon successful execution, you should see output similar to the following:
