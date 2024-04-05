@@ -36,10 +36,10 @@ go build
 Upon successful execution, you should see output similar to the following:
 
 ```
-total time (ms):        314
-optimization time (ms): 236
+total time (ms):        384
+optimization time (ms): 308
 utilization (before):   2.325262
-utilization (after):    0.915767
+utilization (after):    0.841248
 ```
 
 ## License

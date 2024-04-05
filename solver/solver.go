@@ -20,8 +20,6 @@ type Config struct {
 	// in random uniform selection.
 	Alpha float64
 
-	// WARNING: this parameter is currently ignored by the solver.
-	//
 	// Parameter beta controls the likelihood of selecting a demand where the
 	// likelihood P(d|e) of selecting demand d on edge e is determined by the
 	// demand's contribution to the utilization of edge e, raised to the power
@@ -58,12 +56,14 @@ func NewLinkGuidedSolver(state *srte.SRTE, cfg Config) *LinkGuidedSolver {
 	for e := 0; e < nEdges; e++ {
 		lgs.edgeWheel.SetWeight(e, math.Pow(state.Utilization(e), cfg.Alpha))
 		lgs.edgesByUtil.Put(e, -state.Utilization(e)) // non-decreasing order
-		lgs.demandWheels[e] = wheels.NewDemandWheel(16)
+		lgs.demandWheels[e] = wheels.NewDemandWheel(64)
 	}
 
 	for i, d := range state.Instance.Demands {
 		for _, er := range state.FGraphs.EdgeRatios(d.From, d.To) {
-			lgs.demandWheels[er.Edge].Put(i, srte.SplitLoad(d.Bandwidth, er.Ratio))
+			load := srte.SplitLoad(d.Bandwidth, er.Ratio)
+			util := float64(load) / float64(state.Instance.LinkCapacities[er.Edge])
+			lgs.demandWheels[er.Edge].Put(i, load, math.Pow(util, cfg.Beta))
 		}
 	}
 
@@ -125,13 +125,14 @@ func (lgs *LinkGuidedSolver) ApplyMove(move srte.Move) bool {
 		// Efficiently maintain the list of demands passing through the edge
 		// by comparing the load before and after the move. The trick is that
 		// the edge load change can only be caused by the demand being moved.
-		oldTraffic := lgs.demandWheels[lc.Edge].Get(move.Demand)
+		oldTraffic := lgs.demandWheels[lc.Edge].GetLoad(move.Demand)
 		delta := lgs.state.Load(lc.Edge) - lc.PreviousLoad
 		newTraffic := oldTraffic + delta
 		if newTraffic == 0 {
 			lgs.demandWheels[lc.Edge].Remove(move.Demand)
 		} else {
-			lgs.demandWheels[lc.Edge].Put(move.Demand, newTraffic)
+			util := float64(newTraffic) / float64(lgs.state.Instance.LinkCapacities[lc.Edge])
+			lgs.demandWheels[lc.Edge].Put(move.Demand, newTraffic, math.Pow(util, lgs.cfg.Beta))
 		}
 	}
 

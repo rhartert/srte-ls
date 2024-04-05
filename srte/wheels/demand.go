@@ -5,7 +5,8 @@ import "log"
 type DemandWheel struct {
 	offset  int
 	size    int
-	weights []int64
+	weights []float64
+	loads   []int64
 	elems   []int
 	hash    map[int]int
 }
@@ -15,8 +16,9 @@ func NewDemandWheel(initSize int) *DemandWheel {
 	return &DemandWheel{
 		offset:  offset,
 		size:    0,
-		weights: make([]int64, offset*2),
+		weights: make([]float64, offset*2),
 		elems:   make([]int, offset*2),
+		loads:   make([]int64, offset*2),
 		hash:    make(map[int]int, initSize),
 	}
 }
@@ -31,28 +33,30 @@ func nextPower2(i int) int {
 	return i + 1
 }
 
-func (st *DemandWheel) Put(elem int, weight int64) {
-	if i, ok := st.hash[elem]; ok {
-		st.update(i, weight)
+func (st *DemandWheel) Put(elem int, load int64, weight float64) {
+	if _, ok := st.hash[elem]; ok {
+		st.update(elem, load, weight)
 	} else {
-		st.insert(elem, weight)
+		st.insert(elem, load, weight)
 	}
 }
 
-func (st *DemandWheel) update(i int, weight int64) {
-	n := st.offset + i
+func (st *DemandWheel) update(elem int, load int64, weight float64) {
+	n := st.offset + st.hash[elem]
+	st.loads[n] = load
 	st.weights[n] = weight
 	st.propagate(n)
 }
 
-func (st *DemandWheel) insert(elem int, weight int64) {
+func (st *DemandWheel) insert(elem int, load int64, weight float64) {
 	if st.offset+st.size == len(st.weights) {
 		st.grow()
 	}
 
 	n := st.offset + st.size
-	st.weights[n] = weight
 	st.elems[n] = elem
+	st.loads[n] = load
+	st.weights[n] = weight
 	st.hash[elem] = st.size
 	st.size++
 
@@ -74,6 +78,7 @@ func (st *DemandWheel) Remove(elem int) {
 	if delNode != lastNode {
 		st.weights[delNode] = st.weights[lastNode]
 		st.elems[delNode] = st.elems[lastNode]
+		st.loads[delNode] = st.loads[lastNode]
 		st.hash[st.elems[lastNode]] = i
 		st.propagate(delNode)
 	}
@@ -82,9 +87,9 @@ func (st *DemandWheel) Remove(elem int) {
 	st.propagate(lastNode)
 }
 
-func (st *DemandWheel) Get(elem int) int64 {
+func (st *DemandWheel) GetLoad(elem int) int64 {
 	if i, ok := st.hash[elem]; ok {
-		return st.weights[st.offset+i]
+		return st.loads[st.offset+i]
 	}
 	return 0
 }
@@ -97,7 +102,7 @@ func (st *DemandWheel) Roll(roll float64) int {
 		return -1
 	}
 
-	w := int64(float64(st.weights[1]) * roll)
+	w := float64(st.weights[1]) * roll
 	i := 1
 	for i < st.offset {
 		l := i * 2
@@ -122,11 +127,14 @@ func (st *DemandWheel) propagate(i int) {
 
 func (st *DemandWheel) grow() {
 	newOffset := len(st.weights)
-	newWeights := make([]int64, newOffset*2)
+	newWeights := make([]float64, newOffset*2)
+	newLoads := make([]int64, newOffset*2)
 	newElems := make([]int, newOffset*2)
 	copy(newWeights[newOffset:], st.weights[st.offset:])
+	copy(newLoads[newOffset:], st.loads[st.offset:])
 	copy(newElems[newOffset:], st.elems[st.offset:])
 	st.weights = newWeights
+	st.loads = newLoads
 	st.elems = newElems
 	st.offset = newOffset
 	for p := st.offset - 1; p > 0; p-- {

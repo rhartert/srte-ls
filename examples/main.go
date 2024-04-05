@@ -60,6 +60,12 @@ var flagAlpha = flag.Float64(
 	"",
 )
 
+var flagBeta = flag.Float64(
+	"beta",
+	2.0,
+	"",
+)
+
 func validateFlags() error {
 	if *flagNetworkFile == "" {
 		return fmt.Errorf("missing network file")
@@ -78,6 +84,9 @@ func validateFlags() error {
 	}
 	if n := *flagAlpha; n < 0 {
 		return fmt.Errorf("parameter alpha must be non-negative, got: %f", n)
+	}
+	if n := *flagBeta; n < 0 {
+		return fmt.Errorf("parameter beta must be non-negative, got: %f", n)
 	}
 	return nil
 }
@@ -136,6 +145,7 @@ func main() {
 	rng := rand.New(rand.NewSource(*flagSeed))
 	lgs := solver.NewLinkGuidedSolver(srteState(), solver.Config{
 		Alpha: *flagAlpha,
+		Beta:  *flagBeta,
 	})
 
 	startUtil := lgs.MaxUtilization()
