@@ -159,6 +159,9 @@ func main() {
 		// Select the demand to move. The more a demand contributes to the
 		// edge's load, the more likely it is to be selected.
 		d := lgs.SelectDemand(e, rng.Float64())
+		if d == -1 {
+			continue // no demand on the edge
+		}
 
 		// Search for a move that reduces the load of the selected edge and does
 		// not increase the maximum utilization of the network.
