@@ -32,8 +32,8 @@ type Config struct {
 }
 
 type LinkGuidedSolver struct {
-	state *srte.SRTE
-	cfg   Config
+	State *srte.SRTE
+	Cfg   Config
 
 	edgeWheel    *wheels.StaticWheel
 	edgesByUtil  *yagh.IntMap[float64]
@@ -46,8 +46,8 @@ func NewLinkGuidedSolver(state *srte.SRTE, cfg Config) *LinkGuidedSolver {
 	nEdges := len(state.Instance.Graph.Edges)
 
 	lgs := &LinkGuidedSolver{
-		state:        state,
-		cfg:          cfg,
+		State:        state,
+		Cfg:          cfg,
 		edgeWheel:    wheels.NewStaticWheel(nEdges),
 		edgesByUtil:  yagh.New[float64](nEdges),
 		demandWheels: make([]*wheels.DemandWheel, nEdges),
@@ -80,7 +80,7 @@ func (lgs *LinkGuidedSolver) MostUtilizedEdge() int {
 
 // MaxUtilization returns the maximum edge utilization.
 func (lgs *LinkGuidedSolver) MaxUtilization() float64 {
-	return lgs.state.Utilization(lgs.MostUtilizedEdge())
+	return lgs.State.Utilization(lgs.MostUtilizedEdge())
 }
 
 // SelectEdge selects edge using roulette wheel selection accordingly to random
@@ -104,39 +104,39 @@ func (lgs *LinkGuidedSolver) SelectDemand(edge int, r float64) int {
 // maxUtil are not considered valid. If several moves are possible, the one that
 // reduces the edge's load the most is returned.
 func (lgs *LinkGuidedSolver) Search(edge int, demand int, maxUtil float64) (srte.Move, bool) {
-	return lgs.state.Search(edge, demand, maxUtil)
+	return lgs.State.Search(edge, demand, maxUtil)
 }
 
 // ApplyMove applies the move if possible. It returns true if the move was
 // applied, false otherwise.
 func (lgs *LinkGuidedSolver) ApplyMove(move srte.Move) bool {
 	// Apply the move but do not persist the changes yet (see below).
-	if applied := lgs.state.ApplyMove(move, false); !applied {
+	if applied := lgs.State.ApplyMove(move, false); !applied {
 		return false
 	}
 
 	// Update structures for fast selection by iterating on the edges that
 	// were impacted by the move.
-	for _, lc := range lgs.state.Changes() {
-		util := lgs.state.Utilization(lc.Edge)
-		lgs.edgeWheel.SetWeight(lc.Edge, math.Pow(util, lgs.cfg.Alpha))
+	for _, lc := range lgs.State.Changes() {
+		util := lgs.State.Utilization(lc.Edge)
+		lgs.edgeWheel.SetWeight(lc.Edge, math.Pow(util, lgs.Cfg.Alpha))
 		lgs.edgesByUtil.Put(lc.Edge, -util) // non-decreasing order
 
 		// Efficiently maintain the list of demands passing through the edge
 		// by comparing the load before and after the move. The trick is that
 		// the edge load change can only be caused by the demand being moved.
 		oldTraffic := lgs.demandWheels[lc.Edge].GetLoad(move.Demand)
-		delta := lgs.state.Load(lc.Edge) - lc.PreviousLoad
+		delta := lgs.State.Load(lc.Edge) - lc.PreviousLoad
 		newTraffic := oldTraffic + delta
 		if newTraffic == 0 {
 			lgs.demandWheels[lc.Edge].Remove(move.Demand)
 		} else {
-			util := float64(newTraffic) / float64(lgs.state.Instance.LinkCapacities[lc.Edge])
-			lgs.demandWheels[lc.Edge].Put(move.Demand, newTraffic, math.Pow(util, lgs.cfg.Beta))
+			util := float64(newTraffic) / float64(lgs.State.Instance.LinkCapacities[lc.Edge])
+			lgs.demandWheels[lc.Edge].Put(move.Demand, newTraffic, math.Pow(util, lgs.Cfg.Beta))
 		}
 	}
 
 	// Persist the changes now that the structures have been updated.
-	lgs.state.PersistChanges()
+	lgs.State.PersistChanges()
 	return true
 }
