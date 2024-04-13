@@ -84,14 +84,19 @@ func NewSRTE(instance *SRTEInstance) (*SRTE, error) {
 	}, nil
 }
 
+// Load returns the edge's load.
 func (srte *SRTE) Load(edge int) int64 {
 	return srte.state.Load(edge)
 }
 
+// Utilization returns the edge's utilization.
 func (srte *SRTE) Utilization(edge int) float64 {
 	return float64(srte.state.Load(edge)) / float64(srte.Instance.LinkCapacities[edge])
 }
 
+// ApplyMove applies the give move to the network's state. The function returns
+// true if the move could be applied, it returns false otherwize (e.g. if the
+// move is invalid).
 func (srte *SRTE) ApplyMove(m Move, persist bool) bool {
 	movedApplied := false // whether the move was applied or not
 
@@ -130,25 +135,33 @@ func (srte *SRTE) ApplyMove(m Move, persist bool) bool {
 	return true
 }
 
+// PersistChanges persists the changes applied since the last time the state of
+// the network was persisted. New changes can be accumulated (and undone) from
+// this point.
 func (srte *SRTE) PersistChanges() {
 	srte.state.PersistChanges()
 }
 
+// Changes returns the list of changes applied to the network since the last
+// time the state was persisted.
 func (srte *SRTE) Changes() []LoadChange {
 	return srte.state.Changes()
 }
 
-func (srte *SRTE) Search(edge int, demand int, maxutil float64) (Move, bool) {
-	if move, ok := srte.SearchClear(edge, demand, maxutil); ok {
+// Search searches for a move that reduces the load of the selected edge and
+// keeps the maximum utilization of the network below maxUtil. It returns an
+// empty move and false if it could not find an improving move.
+func (srte *SRTE) Search(edge int, demand int, maxUtil float64) (Move, bool) {
+	if move, ok := srte.SearchClear(edge, demand, maxUtil); ok {
 		return move, true
 	}
-	if move, ok := srte.SearchRemove(edge, demand, maxutil); ok {
+	if move, ok := srte.SearchRemove(edge, demand, maxUtil); ok {
 		return move, true
 	}
-	if move, ok := srte.SearchUpdate(edge, demand, maxutil); ok {
+	if move, ok := srte.SearchUpdate(edge, demand, maxUtil); ok {
 		return move, true
 	}
-	if move, ok := srte.SearchInsert(edge, demand, maxutil); ok {
+	if move, ok := srte.SearchInsert(edge, demand, maxUtil); ok {
 		return move, true
 	}
 	return Move{}, false
