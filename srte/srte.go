@@ -94,7 +94,7 @@ func (srte *SRTE) Utilization(edge int) float64 {
 	return float64(srte.state.Load(edge)) / float64(srte.Instance.LinkCapacities[edge])
 }
 
-// ApplyMove applies the give move to the network's state. The function returns
+// ApplyMove applies the given move to the network's state. The function returns
 // true if the move could be applied, it returns false otherwize (e.g. if the
 // move is invalid).
 func (srte *SRTE) ApplyMove(m Move, persist bool) bool {
@@ -167,6 +167,9 @@ func (srte *SRTE) Search(edge int, demand int, maxUtil float64) (Move, bool) {
 	return Move{}, false
 }
 
+// SearchClear searches for a "clear" move that reduces the load of the selected
+// edge and keeps the maximum utilization of the network below maxUtil. It
+// returns an empty move and false if it could not find an improving move.
 func (srte *SRTE) SearchClear(edge int, demand int, maxUtil float64) (Move, bool) {
 	edgeLoad := srte.state.Load(edge)
 
@@ -187,6 +190,9 @@ func (srte *SRTE) SearchClear(edge int, demand int, maxUtil float64) (Move, bool
 	return Move{MoveType: MoveClear, Demand: demand}, true
 }
 
+// SearchRemove searches for a "remove" move that reduces the load of the
+// selected edge and keeps the maximum utilization of the network below maxUtil.
+// It returns an empty move and false if it could not find an improving move.
 func (srte *SRTE) SearchRemove(edge int, demand int, maxUtil float64) (Move, bool) {
 	edgeLoad := srte.state.Load(edge)
 	pathVar := srte.PathVar[demand]
@@ -214,6 +220,9 @@ func (srte *SRTE) SearchRemove(edge int, demand int, maxUtil float64) (Move, boo
 	return bestMove, bestMove.MoveType != MoveUnknown
 }
 
+// SearchUpdate searches for a "update" move that reduces the load of the
+// selected edge and keeps the maximum utilization of the network below maxUtil.
+// It returns an empty move and false if it could not find an improving move.
 func (srte *SRTE) SearchUpdate(edge int, demand int, maxUtil float64) (Move, bool) {
 	nNodes := len(srte.Instance.Graph.Nexts)
 	edgeLoad := srte.state.Load(edge)
@@ -244,6 +253,9 @@ func (srte *SRTE) SearchUpdate(edge int, demand int, maxUtil float64) (Move, boo
 	return bestMove, bestMove.MoveType != MoveUnknown
 }
 
+// SearchInsert searches for a "insert" move that reduces the load of the
+// selected edge and keeps the maximum utilization of the network below maxUtil.
+// It returns an empty move and false if it could not find an improving move.
 func (srte *SRTE) SearchInsert(edge int, demand int, maxUtil float64) (Move, bool) {
 	nNodes := len(srte.Instance.Graph.Nexts)
 	edgeLoad := srte.state.Load(edge)
@@ -286,6 +298,12 @@ func (srte *SRTE) checkMaxUtil(maxUtil float64) bool {
 	return true
 }
 
+// Clear removes all the intermediate nodes in the demand's path and updates the
+// load of the impacted edge accordingly.
+//
+// The function returns true if (i) the operation is valid, and (ii) it changed
+// the demand's path. Otherwise, it returns false and does not change the state
+// of the network.
 func (srte *SRTE) Clear(demand int) bool {
 	p := srte.PathVar[demand]
 	if !p.CanClear() {
@@ -304,6 +322,12 @@ func (srte *SRTE) Clear(demand int) bool {
 	return true
 }
 
+// Remove removes the intermediate node at position pos in the demand's path
+// and updates the load of the impacted edge accordingly.
+//
+// The function returns true if (i) the operation is valid, and (ii) it changed
+// the demand's path. Otherwise, it returns false and does not change the state
+// of the network.
 func (srte *SRTE) Remove(demand int, pos int) bool {
 	p := srte.PathVar[demand]
 	if !p.CanRemove(pos) {
@@ -323,6 +347,12 @@ func (srte *SRTE) Remove(demand int, pos int) bool {
 	return true
 }
 
+// Update replaces the intermediate node at position pos in the demand's path
+// with newNode and updates the load of the impacted edge accordingly.
+//
+// The function returns true if (i) the operation is valid, and (ii) it changed
+// the demand's path. Otherwise, it returns false and does not change the state
+// of the network.
 func (srte *SRTE) Update(demand int, pos int, newNode int) bool {
 	p := srte.PathVar[demand]
 	if !p.CanUpdate(pos, newNode) {
@@ -343,6 +373,12 @@ func (srte *SRTE) Update(demand int, pos int, newNode int) bool {
 	return true
 }
 
+// Insert inserts a new intermediate node at position pos in the demand's path
+// and updates the load of the impacted edge accordingly.
+//
+// The function returns true if (i) the operation is valid, and (ii) it changed
+// the demand's path. Otherwise, it returns false and does not change the state
+// of the network.
 func (srte *SRTE) Insert(demand int, pos int, node int) bool {
 	p := srte.PathVar[demand]
 	if !p.CanInsert(pos, node) {
