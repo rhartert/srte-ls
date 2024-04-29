@@ -5,6 +5,9 @@ ren.hartert@gmail.com.
 
 # SRTE-LS ⚡️
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/rhartert/srte-ls.svg)](https://pkg.go.dev/github.com/rhartert/srte-ls)
+[![Go Report Card](https://goreportcard.com/badge/github.com/rhartert/srte-ls)](https://goreportcard.com/report/github.com/rhartert/srte-ls)
+
 SRTE-LS is a fast optimizer to find (near) optimal traffic placement in Segment 
 Routing enabled networks. It is a Go implementation of the Link-Guided Local 
 Search algorithm presented in [[1]] and [[2]].
