@@ -7,20 +7,20 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/rhartert/srte-ls/examples/parser"
+	"github.com/rhartert/srte-ls/parser"
 	"github.com/rhartert/srte-ls/solver"
 	"github.com/rhartert/srte-ls/srte"
 )
 
 var flagNetworkFile = flag.String(
 	"network",
-	"data/synth100.graph",
+	"examples/synth100.graph",
 	"Path to the network file",
 )
 
 var flagDemandFile = flag.String(
 	"demands",
-	"data/synth100.demands",
+	"examples/synth100.demands",
 	"Path to the demand file",
 )
 
