@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
+	"runtime/pprof"
 	"time"
 
 	"github.com/rhartert/srte-ls/parser"
@@ -66,7 +68,15 @@ var flagBeta = flag.Float64(
 	"Beta parameter for demand selection",
 )
 
-func validateFlags() error {
+var flagCPUProfile = flag.Bool(
+	"cpuprof",
+	false,
+	"save cpu pprof profile in cpuprof",
+)
+
+func parseAndValidateFlags() error {
+	flag.Parse()
+
 	if *flagNetworkFile == "" {
 		return fmt.Errorf("missing network file")
 	}
@@ -135,8 +145,7 @@ func srteState() *srte.SRTE {
 }
 
 func main() {
-	flag.Parse()
-	if err := validateFlags(); err != nil {
+	if err := parseAndValidateFlags(); err != nil {
 		log.Fatalf("Error validating flags: %s", err)
 	}
 
@@ -147,6 +156,15 @@ func main() {
 		Alpha: *flagAlpha,
 		Beta:  *flagBeta,
 	})
+
+	if *flagCPUProfile {
+		f, err := os.Create("cpuprof")
+		if err != nil {
+			log.Fatal(err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 
 	startUtil := lgs.MaxUtilization()
 	optStart := time.Now()
