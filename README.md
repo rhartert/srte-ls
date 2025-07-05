@@ -1,8 +1,3 @@
-> 🫵 **Looking for collaborators** who would be interested in integrating a
-traffic load optimizer (such as this one or a [more powerful version]) into a 
-real-world network controller. If you're such a person, please contact me at 
-ren.hartert@gmail.com. 
-
 # SRTE-LS ⚡️
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/rhartert/srte-ls.svg)](https://pkg.go.dev/github.com/rhartert/srte-ls)
